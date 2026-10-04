@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>M &amp; A · Panel</title>
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Great+Vibes&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .wrap { padding-top: calc(env(safe-area-inset-top) + 40px); }
+    .admin-title { font-family: var(--serif); font-weight: 500; font-size: 34px; text-align: center; margin: 0 0 22px; }
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px; }
+    .stat { text-align: center; padding: 16px 10px; }
+    .stat b { display: block; font-family: var(--serif); font-size: 36px; font-weight: 600; color: var(--sage-dark); line-height: 1.1; }
+    .stat span { font-size: 14px; color: var(--muted); }
+    .storage .total-row span:last-child { font-family: var(--serif); font-size: 22px; font-weight: 600; color: var(--sage-dark); }
+    .storage .bar { height: 14px; }
+    .storage .bar > span.warn { background: linear-gradient(90deg, var(--blush), var(--error)); }
+    .muted { color: var(--muted); font-size: 14px; }
+    .err { color: var(--error); text-align: center; min-height: 1.5em; }
+    #panel .btn { margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="monogram" aria-label="M y A">
+      <span class="mono-ring" aria-hidden="true"></span>
+      <span class="mono-text">M <span class="amp">&amp;</span> A</span>
+    </div>
+    <h1 class="admin-title">Panel de la boda</h1>
+
+    <form id="login" class="screen">
+      <div class="field">
+        <label for="adminKey">Clave de administración</label>
+        <input id="adminKey" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn-primary btn-big" type="submit">Entrar</button>
+      <p id="err" class="err" role="alert"></p>
+    </form>
+
+    <section id="panel" class="screen" hidden>
+      <div class="stats">
+        <div class="card stat"><b id="s-files">–</b><span>archivos en total</span></div>
+        <div class="card stat"><b id="s-folder">–</b><span>ocupan las subidas</span></div>
+        <div class="card stat"><b id="s-photos">–</b><span>fotos</span></div>
+        <div class="card stat"><b id="s-videos">–</b><span>vídeos</span></div>
+      </div>
+      <div class="card storage">
+        <div class="total-row"><span>Espacio de Google Drive</span><span id="s-pct">–</span></div>
+        <div class="bar"><span id="s-bar"></span></div>
+        <p class="note">Usado: <b id="s-used">–</b> · Libre: <b id="s-free">–</b> · Total: <b id="s-limit">–</b></p>
+      </div>
+      <p class="muted" id="s-last" style="text-align:center"></p>
+      <button id="refresh" class="btn btn-ghost" type="button">Actualizar</button>
+      <button id="logout" class="btn btn-ghost" type="button">Salir</button>
+    </section>
+  </main>
+
+  <script src="assets/js/config.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    var cfg = window.BODA_CONFIG;
+    var $ = function (id) { return document.getElementById(id); };
+    var KEY = 'boda_admin';
+
+    function getSaved() { try { return sessionStorage.getItem(KEY) || ''; } catch (e) { return ''; } }
+    function save(v) { try { v ? sessionStorage.setItem(KEY, v) : sessionStorage.removeItem(KEY); } catch (e) {} }
+
+    function gb(n) {
+      if (n == null) return '–';
+      if (n < 1e9) return (n / 1e6).toFixed(0) + ' MB';
+      return (n / 1e9).toFixed(2).replace('.', ',') + ' GB';
+    }
+
+    async function load(adminKey) {
+      $('err').textContent = 'Cargando…';
+      try {
+        var res = await fetch(cfg.API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'stats', adminKey: adminKey }),
+          cache: 'no-store'
+        });
+        var r = await res.json();
+        if (!r.ok) {
+          $('err').textContent = r.error === 'bad_admin_key' ? 'Clave incorrecta.' : 'Error: ' + (r.message || r.error);
+          save('');
+          $('login').hidden = false;
+          $('panel').hidden = true;
+          return;
+        }
+        save(adminKey);
+        $('err').textContent = '';
+        $('s-files').textContent = r.files;
+        $('s-photos').textContent = r.photos;
+        $('s-videos').textContent = r.videos;
+        $('s-folder').textContent = gb(r.folderBytes);
+        var limit = r.storageLimit, used = r.storageUsed;
+        var pct = limit ? Math.min(100, (used / limit) * 100) : 0;
+        $('s-used').textContent = gb(used);
+        $('s-limit').textContent = limit ? gb(limit) : 'ilimitado';
+        $('s-free').textContent = limit ? gb(Math.max(0, limit - used)) : '–';
+        $('s-pct').textContent = pct.toFixed(1).replace('.', ',') + ' %';
+        $('s-bar').style.width = pct + '%';
+        $('s-bar').className = pct > 85 ? 'warn' : '';
+        $('s-last').textContent = r.lastUpload
+          ? 'Última subida: ' + new Date(r.lastUpload).toLocaleString('es-ES')
+          : 'Todavía no hay subidas.';
+        $('login').hidden = true;
+        $('panel').hidden = false;
+      } catch (e) {
+        $('err').textContent = 'No se ha podido conectar. Revisa la URL de Apps Script en config.js.';
+      }
+    }
+
+    $('login').addEventListener('submit', function (e) {
+      e.preventDefault();
+      load($('adminKey').value.trim());
+    });
+    $('refresh').addEventListener('click', function () { load(getSaved()); });
+    $('logout').addEventListener('click', function () {
+      save('');
+      $('adminKey').value = '';
+      $('panel').hidden = true;
+      $('login').hidden = false;
+    });
+    if (getSaved()) load(getSaved());
+  })();
+  </script>
+</body>
+</html>
