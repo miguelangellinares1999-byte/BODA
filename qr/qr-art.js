@@ -6,7 +6,9 @@
   var W = 1200, H = 1500;
   var QR_X = 230, QR_Y = 250, QR_SIZE = 740;   // incluye el margen blanco de 4 módulos
   var DARK = '#4C6141';     // verde salvia oscuro (contraste suficiente para escanear)
-  var EYE = '#B4707A';      // rosa empolvado intenso para el centro de los "ojos"
+  // Centro de los "ojos" igual de oscuro que el resto: con el rosa, la cámara
+  // del iPhone no reconocía las esquinas del QR (en gris queda a medio tono).
+  var EYE = DARK;
   var SAGE = '#9CAF88', BLUSH = '#E8B4B8', BLUSH_DARK = '#C98A90', TEXT = '#3F4B3E';
   var CAPTION_TOP = 'Comparte tus fotos y vídeos';
   var CAPTION_BOTTOM_NAMES = 'M&A';
